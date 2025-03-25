@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Merch Store</title>
+    <link 
+    href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" 
+    rel="stylesheet">
+    <style>
+        /* Global black and white theme */
+        body {
+          background-color: #000000;
+          color: #000;
+        }
+    
+        /* Auth container in top-right */
+        .auth-container {
+          position: fixed;
+          top: 20px;
+          right: 20px;
+          z-index: 1050;
+        }
+    
+        /* Cart styling */
+        #cart {
+          display: none;
+          position: fixed;
+          top: 80px;
+          right: 20px;
+          background: #fff;
+          padding: 1.5rem;
+          border: 1px solid #ccc;
+          border-radius: 8px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+          width: 300px;
+          z-index: 1040;
+        }
+    
+        /* Product grid styling */
+        .product-grid {
+          padding: 2rem 0;
+        }
+    
+        .product-card {
+          border: 1px solid #ccc;
+          border-radius: 8px;
+          overflow: hidden;
+          transition: transform 0.3s ease, box-shadow 0.3s ease;
+          background: #fff;
+          margin-bottom: 2rem;
+        }
+        
+        .product-card:hover {
+          transform: translateY(-5px);
+          box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+        }
+    
+        .product-image {
+          width: 100%;
+          height: 200px;
+          object-fit: cover;
+          transition: opacity 0.3s ease;
+        }
+    
+        .product-card:hover .product-image {
+          opacity: 0.9;
+        }
+    
+        .product-info {
+          padding: 1rem;
+          text-align: center;
+        }
+    
+        .price {
+          display: block;
+          background: #000;
+          color: #fff;
+          padding: 0.25rem 0.5rem;
+          border-radius: 4px;
+          margin: 0.5rem auto;
+          opacity: 0;
+          transition: opacity 0.3s ease;
+          width: fit-content;
+        }
+    
+        .product-card:hover .price {
+          opacity: 1;
+        }
+    
+        /* Button animations */
+        button, .btn {
+            background-color: #ffffff;
+            color: #000000;
+          transition: background-color 0.3s ease, transform 0.3s ease;
+        }
+    
+        button:hover, .btn:hover {
+          transform: scale(1.05);
+        }
+        .text-center {
+          text-align: center;
+          color: #fff;
+        }
+      </style>
+</head>
+<body>
+  <div class="auth-container">
+    <a href="/login" id="loginBtn" class="btn btn-outline-dark btn-sm">Login</a>
+    <a href="/logout" id="logoutBtn" class="btn btn-outline-dark btn-sm" style="display: none;">Logout</a>
+    <button id="cartToggle" class="btn btn-outline-dark btn-sm" style="display: none;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-cart" viewBox="0 0 16 16">
+          <path d="M0 1.5A.5.5 0 0 1 .5 1H2a.5.5 0 0 1 .485.379L2.89 3H14.5a.5.5 0 0 1 .491.592l-1.5 8A.5.5 0 0 1 13 12H4a.5.5 0 0 1-.491-.408L2.01 3.607 1.61 2H.5a.5.5 0 0 1-.5-.5M3.102 4l1.313 7h8.17l1.313-7zM5 12a2 2 0 1 0 0 4 2 2 0 0 0 0-4m7 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4m-7 1a1 1 0 1 1 0 2 1 1 0 0 1 0-2m7 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2"/>
+        </svg>
+      </button>
+    </div>
+  
+  <div class="container">
+    <h1 class="text-center my-4">Merch Store</h1>
+    
+    <div id="cart" style="display: none;">
+      <h4 class="mb-3">Your Cart</h4>
+      <div id="cartItems"></div>
+      <button onclick="checkout()" class="btn btn-dark btn-block mt-3">Checkout</button>
+    </div>
+    
+    <div class="row product-grid" id="productsContainer">
+      <!-- Product cards will be injected here -->
+    </div>
+  </div>
+  
+  <!-- Bootstrap JS and dependencies -->
+  <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+  <script 
+    src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+  
+    <script>
+        // Authentication state management
+        async function updateAuthState() {
+            try {
+                const response = await fetch('/api/cart', { credentials: 'include' });
+                const isAuthenticated = response.ok;
+                
+                document.getElementById('loginBtn').style.display = isAuthenticated ? 'none' : 'inline-block';
+                document.getElementById('logoutBtn').style.display = isAuthenticated ? 'inline-block' : 'none';
+                document.getElementById('cartToggle').style.display = isAuthenticated ? 'inline-block' : 'none';
+                
+                if (!isAuthenticated) {
+                document.getElementById('cart').style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Auth check failed:', error);
+            }
+        }
+    
+        // Cart management functions
+        async function updateCartDisplay() {
+          try {
+            const response = await fetch('/api/cart', { credentials: 'include' });
+            
+            if (!response.ok) throw new Error('Failed to fetch cart');
+            
+            const cart = await response.json();
+            let html = '';
+            
+            cart.forEach(item => {
+              html += `
+                <div class="cart-item d-flex justify-content-between align-items-center border-bottom py-2">
+                  <div>
+                    <h6 class="mb-1">${item.name}</h6>
+                    <small>$${item.original_price} x ${item.quantity}</small>
+                  </div>
+                  <button onclick="removeFromCart(${item.id})" class="btn btn-sm btn-outline-dark">Remove</button>
+                </div>
+              `;
+            });
+            
+            document.getElementById('cartItems').innerHTML = html || '<p>Your cart is empty</p>';
+          } catch (error) {
+            console.error('Cart error:', error);
+          }
+        }
+    
+        // Navigate to product page on card click
+        function goToProductPage(productId) {
+          window.location.href = `product.html?id=${productId}`;
+        }
+    
+        // Product loading
+        async function loadProducts() {
+          try {
+            const response = await fetch('http://localhost:5000/products');
+            const products = await response.json();
+            
+            let html = '';
+            products.forEach(product => {
+              html += `
+                <div class="col-md-4">
+                  <div class="product-card" onclick="goToProductPage(${product.id})">
+                    <img src="${product.image_url}" class="product-image" alt="${product.name}">
+                    <div class="product-info">
+                      <h5>${product.name}</h5>
+                      <span class="price">$${(product.original_price || 0).toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
+              `;
+            });
+            document.getElementById('productsContainer').innerHTML = html;
+          } catch (error) {
+            console.error('Error loading products:', error);
+          }
+        }
+
+        async function removeFromCart(itemId) {
+            try {
+                const response = await fetch(`/api/cart/${itemId}`, {
+                method: 'DELETE',
+                credentials: 'include'
+                });
+
+                if (response.ok) {
+                updateCartDisplay();
+                } else {
+                console.error('Failed to remove item');
+                }
+            } catch (error) {
+                console.error('Remove error:', error);
+            }
+        }
+
+            // Cart toggle functionality
+            document.getElementById('cartToggle').addEventListener('click', async () => {
+                const cart = document.getElementById('cart');
+                if (cart.style.display === 'none') {
+                    await updateCartDisplay(); // Fetch and update cart content
+                    cart.style.display = 'block'; // Show the cart
+                } else {
+                    cart.style.display = 'none'; // Hide the cart
+                }
+            });
+    
+        // Initial setup
+        window.addEventListener('load', () => {
+          updateAuthState();
+          loadProducts();
+        });
+      </script>
+    </body>
+    </html>

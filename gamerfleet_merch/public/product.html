@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Product Details</title>
+  <!-- Bootstrap CSS -->
+  <link 
+    href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" 
+    rel="stylesheet">
+  <style>
+    /* Global black and white theme */
+    body {
+      background-color: #000000;
+      color: #ffffff;
+    }
+    .product-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      padding: 2rem;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .product-image {
+      width: 100%;
+      height: 500px;
+      object-fit: cover;
+      border-radius: 8px;
+    }
+    .options-section {
+      margin: 1rem 0;
+      padding: 1rem;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+    }
+    .review-section {
+      margin-top: 2rem;
+    }
+    .review-card {
+      border: 1px solid #eee;
+      padding: 1rem;
+      margin: 1rem 0;
+      border-radius: 8px;
+    }
+    .price {
+      font-size: 1.5rem;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div class="container my-4">
+    <a href="/" class="mb-3 d-block">← Back to Products</a>
+    <div id="productDetails"></div>
+  </div>
+  
+  <!-- Bootstrap JS and dependencies -->
+  <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+  <script 
+    src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    async function loadProductDetails() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const productId = urlParams.get('id');
+      
+      try {
+        const response = await fetch(`http://localhost:5000/products/${productId}`);
+        const product = await response.json();
+        product.reviews.forEach(review => {
+          review.date = new Date(review.date).toLocaleDateString();
+        });
+        
+        const html = `
+          <div class="product-container">
+            <div>
+              <img src="${product.image_url}" class="product-image" alt="${product.name}">
+            </div>
+            <div>
+              <h1>${product.name}</h1>
+              <p class="price">$${product.original_price.toFixed(2)}</p>
+              <p>${product.description}</p>
+              
+              ${product.colors.length > 0 ? `
+              <div class="options-section">
+                <h3>Colors</h3>
+                ${product.colors.map(color => `
+                  <label class="mr-2">
+                    <input type="radio" name="color" value="${color.trim()}"> ${color.trim()}
+                  </label>
+                `).join('')}
+              </div>` : ''}
+              
+              ${product.sizes.length > 0 ? `
+              <div class="options-section">
+                <h3>Sizes</h3>
+                <select id="sizeSelect" class="form-control w-50">
+                  ${product.sizes.map(size => `
+                    <option value="${size.trim()}">${size.trim()}</option>
+                  `).join('')}
+                </select>
+              </div>` : ''}
+              
+              <button onclick="addToCart()" class="btn btn-dark mt-3">Add to Cart</button>
+              
+              <div class="review-section mt-4">
+                <h2>Reviews</h2>
+                ${product.reviews.map(review => `
+                  <div class="review-card">
+                    <h4>${review.user} (${ '★'.repeat(review.rating)}${'☆'.repeat(5 - review.rating)})</h4>
+                    <p>${review.comment}</p>
+                    <small>${review.date}</small>
+                  </div>
+                `).join('')}
+                
+                <h3>Write a Review</h3>
+                <form onsubmit="submitReview(event)">
+                  <div class="form-group">
+                    <input type="text" name="name" placeholder="Your Name" class="form-control" required>
+                  </div>
+                  <div class="form-group">
+                    <select name="rating" class="form-control" required>
+                      <option value="5">★★★★★</option>
+                      <option value="4">★★★★☆</option>
+                      <option value="3">★★★☆☆</option>
+                      <option value="2">★★☆☆☆</option>
+                      <option value="1">★☆☆☆☆</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <textarea name="comment" placeholder="Your Review" class="form-control" required></textarea>
+                  </div>
+                  <button type="submit" class="btn btn-dark">Submit Review</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        `;
+        document.getElementById('productDetails').innerHTML = html;
+      } catch (error) {
+        console.error('Error loading product:', error);
+      }
+    }
+
+    function addToCart() {
+        const productId = getProductId();
+        
+        fetch('/api/cart', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include', // Send cookies
+            body: JSON.stringify({ product_id: productId, quantity: 1 })
+        })
+        .then(response => {
+            if (response.status === 401) {
+            alert('Please login to add items to cart');
+            window.location.href = '/login'; // Redirect to login
+            } else if (response.ok) {
+            alert('Item added to cart!');
+            } else {
+            alert('Failed to add item to cart');
+            }
+        })
+        .catch(error => console.error('Error:', error));
+    }
+
+    async function submitReview(event) {
+      event.preventDefault();
+      const formData = new FormData(event.target);
+      const review = {
+        user_name: formData.get('name'),
+        rating: parseInt(formData.get('rating')),
+        comment: formData.get('comment')
+      };
+
+      try {
+        const response = await fetch(`http://localhost:5000/products/${getProductId()}/reviews`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(review)
+        });
+        
+        if(response.ok) {
+          alert('Review submitted successfully!');
+          loadProductDetails();
+        }
+      } catch (error) {
+        console.error('Error submitting review:', error);
+      }
+    }
+
+    function getProductId() {
+      return new URLSearchParams(window.location.search).get('id');
+    }
+
+    // Load product details on page load
+    loadProductDetails();
+  </script>
+</body>
+</html>
